@@ -23,6 +23,7 @@ public:
     const char* config(int) const;
     std::string nextToken();
     bool isTerminal(std::string &) const;
+    bool inNonterminal(std::string &) const;
 
     void first(std::string &, std::vector<std::string> &);
     void follow(std::string &nt, std::vector<std::string> &vs);

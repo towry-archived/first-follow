@@ -1,3 +1,12 @@
+//
+// Find first&follow set.
+//
+// Copyright 2014 Towry Wang <http://towry.me>
+// MIT License
+//
+// $2014/9/15$
+//
+
 #include "ff.h"
 #include <iostream>
 

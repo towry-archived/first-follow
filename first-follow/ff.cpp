@@ -2,7 +2,7 @@
 // Find first&follow set.
 //
 // Copyright 2014 Towry Wang <http://towry.me>
-// License under MIT License.
+// MIT License
 //
 // $2014/9/15$
 //
@@ -47,15 +47,16 @@ void FF::output(const char *fn)
     {
         var_first.clear();
 
-        var_first.push_back("{ ");
+        var_first.push_back("{");
         first(*its, var_first);
-        var_first.push_back("}\n");
+        var_first.push_back("}");
 
-        std::cout << " first(" << *its << ") = ";
+        std::cout << "first(" << *its << ") = ";
         for (auto its_inner = var_first.begin(); its_inner != var_first.end(); its_inner++)
         {
-            std::cout << *its_inner;
+            std::cout << *its_inner << " ";
         }
+        std::cout << '\n';
     }
 
     std::cout << "======================================\n";
@@ -66,13 +67,14 @@ void FF::output(const char *fn)
 
         var_follow.push_back("{");
         follow(*its, var_follow);
-        var_first.push_back("}\n");
+        var_follow.push_back("}");
 
         std::cout << "follow(" << *its << ") = ";
         for (auto its_inner = var_follow.begin(); its_inner != var_follow.end(); its_inner++)
         {
             std::cout << *its_inner << " ";
         }
+        std::cout << '\n';
     }
 }
 
@@ -108,6 +110,14 @@ void FF::parse()
             continue;
         }
 
+        if (token == "|")
+        {
+            index++;
+            std::vector<std::string> tmp_s;
+            tmp_s.push_back(m_nts.back());
+            m_defs.push_back(tmp_s);
+        }
+
         if (m_nts.size() == m_nts.max_size())
         {
             m_nts.reserve(10);
@@ -132,13 +142,26 @@ void FF::parse()
             else
             {
                 it = m_defs[index].begin();
+                if (inNonterminal(*it))
+                    continue;
+
                 m_nts.push_back(*it);
-                continue;
             }
         }
-        // or just put the token into m_defs.
-        m_defs[index].push_back(token);
+        else
+            // or just put the token into m_defs.
+            m_defs[index].push_back(token);
     }
+}
+
+bool FF::inNonterminal(std::string &s) const
+{
+    if (std::find(m_nts.begin(), m_nts.end(), s) != m_nts.end())
+    {
+        return true;
+    }
+    else
+        return false;
 }
 
 std::string FF::nextToken()
@@ -148,13 +171,18 @@ std::string FF::nextToken()
 
     while (m_fhPtr->nextc(c) != EOF)
     {
-        if (c == ' ' || c == '|')
+        if (c == ' ')
         {
             if (buf.length() == 0)
             {
                 continue;
             }
 
+            return buf;
+        } 
+        else if (c == '|')
+        {
+            buf.push_back('|');
             return buf;
         }
         else if (c == '\n' || c == '\t')
@@ -196,7 +224,6 @@ void FF::first(std::string &nt, std::vector<std::string> &vs)
             var_str = (*itv)[1];
             if (isTerminal(var_str))
             {
-                var_str.push_back(' ');
                 vs.push_back(var_str);
             }
             else {
@@ -214,25 +241,31 @@ void FF::follow(std::string &nt, std::vector<std::string> &vs)
         if (itv == m_defs.begin() && nt == (*itv)[0])
         {
             vs.push_back("$");
-            std::cout << (*itv)[0] << " ";
+            continue;
         }
 
         // now loop current definition.
         // skip the first nonterminal
-        for (auto its = (*itv).begin()+1; its != (*itv).end(); its++)
+        for (auto its = ((*itv).begin()+1); its != (*itv).end(); its++)
         {
             // find nt in the definition
             // then find what it followed by.
             if ((*its) == nt)
             {
                 // error
-                if ((its + 1) != (*itv).end() - 1)
+                if ((its + 1) != (*itv).end() && \
+                    (*(its + 1)) != (*itv).front())
                 {
                     followFirst(*(its + 1), vs);
+                    if (vs.back() == "$$")
+                    {
+                        vs.pop_back();
+                        follow((*itv).front(), vs);
+                    }
                 }
                 // if nt is the last element
                 // then follow(nt) is equal follow(the start nonterminal in the definition)
-                if ((its + 1) == ((*itv).end() - 1) && \
+                if ((its + 1) == (*itv).end() && \
                     nt != (*itv).front())
                 {
                     follow((*itv).front(), vs);
@@ -244,16 +277,30 @@ void FF::follow(std::string &nt, std::vector<std::string> &vs)
 
 void FF::followFirst(std::string &t, std::vector<std::string> &vs)
 {
-    if (isTerminal(t))
+    if (isTerminal(t) && t != "#")
     {
-        vs.push_back(t);
+        if (std::find(vs.begin(), vs.end(), t) != vs.end())
+        {
+            return;
+        }
+        else 
+        {
+            vs.push_back(t);
+            return;
+        }
     }
 
     for (auto itv = m_defs.begin(); itv != m_defs.end(); itv++)
     {
-        if (itv == m_defs.begin() && t == (*itv)[0])
+        if (t == (*itv).front())
         {
-            if (isTerminal((*itv)[1]))
+            // epsilon
+            if ((*itv)[1] == "#")
+            {
+                vs.push_back("$$");
+                return;
+            }
+            else if (isTerminal((*itv)[1]))
             {
                 vs.push_back((*itv)[1]);
             }
@@ -261,7 +308,7 @@ void FF::followFirst(std::string &t, std::vector<std::string> &vs)
             {
                 followFirst((*itv)[1], vs);
             }
-        }
+        } 
     }
 }
 
@@ -289,7 +336,7 @@ const char* FF::config(int index) const
 
 bool FF::error() const
 {
-    return m_err;
+    return m_err != 0;
 }
 
 const char* FF::getMessage() const
